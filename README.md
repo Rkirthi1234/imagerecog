@@ -1,4 +1,3 @@
-Here is a **complete `README.md` file** you can directly copy into your GitHub repository.
 
 # Image Caption to Creative Scene Generator
 
