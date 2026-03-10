@@ -1,49 +1,18 @@
+# Image Recognition API
 
-# Image Caption to Creative Scene Generator
-
-An AI-powered API that converts an uploaded image into a **short caption** and expands it into a **detailed creative scene description** using deep learning models.
-
-This project combines **image captioning (BLIP)** with **text generation (GPT-2)** to transform images into descriptive narratives.
-
----
-
-## Overview
-
-The system performs two main tasks:
-
-1. **Image Caption Generation**
-
-   * Uses the **BLIP Image Captioning model** to analyze an uploaded image.
-   * Produces a short descriptive caption.
-
-2. **Creative Scene Generation**
-
-   * Uses **GPT-2** to expand the caption.
-   * Generates a **detailed ~250 word scene description**.
-
-The project is implemented as a **FastAPI service**, allowing users to upload images and receive generated descriptions through an API endpoint.
-
----
-
-## Features
-
-* Image upload API
-* Automatic caption generation
-* AI-generated creative scene descriptions
-* FastAPI based REST service
-* Uses HuggingFace Transformers models
+A FastAPI-based image recognition API that generates detailed creative descriptions from uploaded images. It uses **BLIP-large** for image captioning and **LLaMA 3.3 70B (via Groq)** for creative text generation in multiple styles.
 
 ---
 
 ## Tech Stack
 
-* Python
-* FastAPI
-* HuggingFace Transformers
-* BLIP Image Captioning Model
-* GPT-2 Text Generation Model
-* Pydantic
-* Uvicorn
+| Component | Technology |
+|---|---|
+| API Framework | FastAPI |
+| Image Captioning | Salesforce BLIP-large |
+| Creative Text | LLaMA 3.3 70B (Groq API) |
+| Image Processing | Pillow |
+| ML Framework | PyTorch + HuggingFace Transformers |
 
 ---
 
@@ -51,109 +20,146 @@ The project is implemented as a **FastAPI service**, allowing users to upload im
 
 ```
 imagerecognition/
-│
 ├── app/
-│   ├── main.py          # FastAPI application
-│   ├── model.py         # BLIP image caption generation
-│   ├── generator.py     # GPT-2 creative text generator
-│   ├── schemas.py       # Response schema
-│   └── utils.py         # Image loading utilities
-│
-├── requirements.txt
-└── README.md
+│   ├── generator.py     # Creative text generation (Groq + LLaMA)
+│   ├── main.py          # FastAPI routes and endpoints
+│   ├── model.py         # Image captioning (BLIP-large)
+│   ├── schemas.py       # Pydantic response models
+│   └── utils.py         # Image preprocessing
+├── .env                 # API keys (never commit this)
+└── requirements.txt
 ```
+
+---
+
+## Required API Keys
+
+Add these to your `.env` file in the project root:
+
+```env
+GROQ_API_KEY=gsk_xxxxxxxxxxxx
+HF_TOKEN=hf_xxxxxxxxxxxx
+```
+
+| Key | Required | Get it from |
+|---|---|---|
+| `GROQ_API_KEY` | Yes | https://console.groq.com → API Keys (Free) |
+| `HF_TOKEN` | Optional | https://huggingface.co/settings/tokens (Free) |
 
 ---
 
 ## Installation
 
-Clone the repository
-
-```
-git clone https://github.com/your-username/image-caption-generator.git
-cd image-caption-generator
-```
-
-Create a virtual environment
-
-```
+```bash
+# Create and activate virtual environment
 python -m venv .venv
-```
+.venv\Scripts\activate        # Windows
+source .venv/bin/activate     # Mac/Linux
 
-Activate the virtual environment
-
-Windows
-
-```
-.venv\Scripts\activate
-```
-
-Install dependencies
-
-```
-pip install -r requirements.txt
+# Install dependencies
+pip install fastapi uvicorn transformers torch pillow groq python-dotenv
 ```
 
 ---
 
-## Running the Application
+## Run the API
 
-Start the FastAPI server:
-
-```
+```bash
 python -m uvicorn app.main:app --reload
 ```
 
-The API will run at:
-
-```
-http://127.0.0.1:8000
-```
+Server starts at: **http://127.0.0.1:8000**
+Swagger UI at: **http://127.0.0.1:8000/docs**
 
 ---
 
-## API Documentation
+## Endpoints
 
-FastAPI automatically provides interactive documentation.
+### `POST /predict`
+Upload an image and get a caption + creative description in a chosen style.
 
-Swagger UI:
+**Query Parameter:**
+- `style` — `vivid` | `artistic` | `cinematic` | `playful` (default: `vivid`)
 
-```
-http://127.0.0.1:8000/docs
-```
-
----
-
-## API Endpoint
-
-### POST `/predict`
-
-Upload an image to generate a caption and creative description.
-
-#### Request
-
-Form Data
-
-```
-file: image
-```
-
-#### Example Response
-
+**Example Response:**
 ```json
 {
-  "caption": "a dog running through a grassy field",
-  "creative_text": "The golden retriever dashed across the open meadow, its golden fur catching the sunlight as it bounded through the tall grass..."
+  "caption": {
+    "best_caption": "a dog running in a green field",
+    "candidates": [
+      "a dog running in a green field",
+      "a brown dog playing in a field"
+    ]
+  },
+  "creative_text": {
+    "style": "vivid",
+    "creative_text": "The golden retriever bursts across the emerald field...",
+    "word_count": 172
+  }
 }
 ```
 
 ---
 
-## Workflow
+### `POST /predict/all-styles`
+Upload an image and get creative descriptions in **all 4 styles** at once.
 
-1. User uploads an image.
-2. The BLIP model generates a caption.
-3. The caption is sent to the GPT-2 generator.
-4. GPT-2 produces a detailed creative description.
+**Example Response:**
+```json
+{
+  "caption": { "best_caption": "...", "candidates": [] },
+  "styles": {
+    "vivid": { "style": "vivid", "creative_text": "...", "word_count": 165 },
+    "artistic": { "style": "artistic", "creative_text": "...", "word_count": 170 },
+    "cinematic": { "style": "cinematic", "creative_text": "...", "word_count": 168 },
+    "playful": { "style": "playful", "creative_text": "...", "word_count": 160 }
+  }
+}
+```
 
 ---
+
+### `GET /styles`
+Returns a list of all available styles.
+
+```json
+{
+  "styles": ["vivid", "artistic", "cinematic", "playful"],
+  "default": "vivid"
+}
+```
+
+---
+
+## Writing Styles
+
+| Style | Description |
+|---|---|
+| **vivid** | Sensory-rich scene with colors, textures, sounds and smells |
+| **artistic** | Expressive and visually imaginative like a painting description |
+| **cinematic** | Dramatic movie-scene style with lighting and atmosphere |
+| **playful** | Fun, simple and childish tone that kids will enjoy |
+
+---
+
+## How It Works
+
+```
+1. Image uploaded via API
+2. utils.py   → Resize to max 1024px + sharpen for better accuracy
+3. model.py   → BLIP-large generates 3 caption candidates using Beam Search
+               → Picks the most detailed caption
+4. generator.py → Sends caption to Groq (LLaMA 3.3 70B)
+                → Returns 150-200 word creative description in chosen style
+5. main.py    → Caches result in memory to avoid duplicate API calls
+               → Returns JSON response
+```
+
+---
+
+## Performance Notes
+
+- BLIP-large model (~1.88GB) downloads **once** and is cached locally at `~/.cache/huggingface`
+- In-memory caching means repeated requests for the same image+style are **instant**
+- Groq API responds in **under 1 second** (runs on their servers, no local GPU needed)
+- Runs on **CPU** by default — GPU is used automatically if available
