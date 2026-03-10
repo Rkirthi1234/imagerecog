@@ -1,42 +1,64 @@
-from transformers import pipeline
+import re
+import os
+from groq import Groq
+from dotenv import load_dotenv
+from pathlib import Path
 
-# Load text generation model
-generator = pipeline("text-generation", model="gpt2")
+load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / ".env")
 
-def generate_creative_text(caption):
+api_key = os.getenv("GROQ_API_KEY")
+if not api_key:
+    raise ValueError("GROQ_API_KEY environment variable is not set.")
 
-    # Prompt that starts the story
-    prompt = f"""
-Expand the following image caption into a detailed and vivid 250-word scene description.
+client = Groq(api_key=api_key)
 
-Caption: {caption}
+STYLES = {
+    "vivid": "Write a vivid, sensory-rich scene description of 150-200 words.",
+    "Artistic": "Write a poetic and lyrical scene description of 150-200 words.",
+    "cinematic": "Write a cinematic, movie-scene-like description of 150-200 words.",
+    "playful": "Write a fun, simple story for children of 150-200 words.",
+}
 
-Description:
-"""
 
-    result = generator(
-        prompt,
-        max_new_tokens=300,       # generate around 250 words
-        min_new_tokens=220,       # ensure long output
-        temperature=0.8,          # creativity
+def generate_creative_text(caption: str, style: str = "vivid") -> dict:
+
+    style_instruction = STYLES.get(style, STYLES["vivid"])
+
+    response = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "You are a creative writing assistant. "
+                    "Stay strictly on the given caption topic. "
+                    "Output only the scene description, nothing else."
+                ),
+            },
+            {
+                "role": "user",
+                "content": f"{style_instruction}\n\nCaption: {caption}",
+            },
+        ],
+        temperature=0.8,
         top_p=0.9,
-        top_k=50,
-        repetition_penalty=1.3,   # avoid repeating phrases
-        no_repeat_ngram_size=3,
-        do_sample=True,
-        pad_token_id=50256
+        frequency_penalty=0.3,
+        presence_penalty=0.2,
+        max_tokens=400,
     )
 
-    generated_text = result[0]["generated_text"]
+    text = response.choices[0].message.content.strip()
+    word_count = len(re.findall(r"\w+", text))
 
-    # Remove the prompt from output
-    final_text = generated_text.replace(prompt, "").strip()
+    return {
+        "style": style,
+        "creative_text": text,
+        "word_count": word_count,
+    }
 
-    return final_text
 
-
-# Example
-caption = "A small boy flying a kite in a green field"
-output = generate_creative_text(caption)
-
-print(output)
+def generate_all_styles(caption: str) -> dict:
+    results = {}
+    for style in STYLES:
+        results[style] = generate_creative_text(caption, style)
+    return results
